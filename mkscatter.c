@@ -23,7 +23,7 @@ static void usage(char **argv)
 	printf("==================================================\n"
 		   "MTK dumchar_info -> scatter.txt Converter by lolet\n"
 		   "==================================================\n");
-	printf("Usage: %s input output\n", argv[0]);
+	printf("Usage: %s input output [verbose = 0]\n", argv[0]);
 	exit(EXIT_FAILURE);
 }
 
@@ -31,9 +31,10 @@ int main(int argc, char **argv)
 {
 	FILE * f, *o;
 	char verbose = 0;
+	char mtk6592fix = 0;
 	char *fname = 0, *oname = 0, syspart[200] = {0};
 	
-	if (argc == 3 )
+	if (argc > 2 )
 	{
 		f = fopen(argv[1], "r");
 		if(!f)
@@ -50,6 +51,8 @@ int main(int argc, char **argv)
 		}
 		fname = argv[1];
 		oname = argv[2];
+		if(argc > 3)
+		verbose = argv[3];
 	}
 	else	
 		usage(argv);
@@ -68,10 +71,18 @@ int main(int argc, char **argv)
 	
 	if(strcmp(head,"Part_Name"))
 	{
-		printf("ERROR: Unknown file header (%s)", head);
+		printf("ERROR: Unknown file header (%s)\n", head);
 		fclose(f);
 		return EXIT_FAILURE;
 	}
+	
+	if(strstr(buffer, "Region"))
+	{
+		if(verbose)
+			printf("New layout detected applying special rule...\n");
+			mtk6592fix = 1;
+	}
+	
 	int offset = 0;
 	while(fgets(buffer, 1024, f))
 	{
@@ -84,6 +95,14 @@ int main(int argc, char **argv)
 	
 	size+=2;
 	sscanf(size,"%x",&i);
+	if(mtk6592fix)
+		if(!strcmp(part, "PRELOADER"))
+		{
+			fprintf(o,"%s 0x%x\xA", part, 0x40000);
+			if(verbose)
+			printf("Writting: %s 0x%x\n", part, 0x40000);
+			continue;
+		}
 	
 	if(!strcmp(part, "BMTPOOL"))
 	{
@@ -101,7 +120,7 @@ int main(int argc, char **argv)
 	syspart[0]='/';
 	strcpy(&syspart[1], size);
 	}
-	if(!strcmp(part,"PART_NAME:PARTITION"))
+	if(!stricmp(part,"PART_NAME:PARTITION"))
 	{
 		if(verbose)
 		printf("Finishing...\n");
